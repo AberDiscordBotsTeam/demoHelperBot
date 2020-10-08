@@ -4,3 +4,4 @@ adminRoles = ['Demonstrator', 'demonstrator', 'DEMONSTRATOR', 'Admin role', 'ADM
 
 addMessageFile = 'addMessage.shelve'
 toggleStateFile = 'toggleState.shelve'
+queuePersist = 'queue.shelve'

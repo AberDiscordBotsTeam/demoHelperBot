@@ -9,10 +9,8 @@ from discord.ext.commands import Context
 import logging
 import shelve
 
-from cogs import adminRoles, addMessageFile, toggleStateFile
+from cogs import adminRoles, addMessageFile, toggleStateFile, queuePersist
 from helpers import listPrint
-
-queues = {'dummy': []}
 
 # somewhere to store the last message sent per guild per channel.
 # key used is the guild name + the channel name.
@@ -64,8 +62,17 @@ def setup(bot):
     """
     Setup the cogs in this extension
     """
+    global queues
+    queues = shelve.open(queuePersist,writeback=True)
     bot.add_cog(Students(bot))
     bot.add_cog(Demonstrators(bot))
+
+
+def teardown(bot):
+    """
+    after closing the cog
+    """
+    queues.close()
 
 
 def getQueue(serverName: str):
@@ -96,7 +103,7 @@ def getCustomAddMessage(serverName: str):
             return 'Please join the `Wait for help` voice channel and wait to be moved to another voice channel'
 
 
-def updateMember(ctx: Context, m: Member):
+def updateMember(ctx: Context, m: int):
     """
     If you have a member object from a previous command that needs updating. This fucntion si for you.
 
@@ -104,10 +111,12 @@ def updateMember(ctx: Context, m: Member):
     :param m: the outdated member object,
         it uses id to get the members so you could pass a simple m.id = 2324534 object if you really want to.
     """
+    print(ctx.channel.members)
     for m1 in ctx.guild.members:
-        if m1.id == m.id:
+        print(m1.id,m)
+        if m1.id == m:
             return m1
-    return m
+    return None
 
 
 async def pullToVoice(ctx: Context, user: Member):
@@ -196,9 +205,11 @@ class Demonstrators(commands.Cog):
         """
         k = ctx.guild.name + ctx.channel.name
         await rmPrevMessage(ctx, k)
-        queue = getQueue(ctx.guild)
+        queue = getQueue(str(ctx.guild))
         if len(queue) > 0:
             next = queue.pop(0)
+            print(next)
+            next = updateMember(ctx, next)
             logging.info('{0} next {1}'.format(ctx.guild, next))
             if next is not None:
                 prevMessages[k] = await ctx.send(
@@ -207,6 +218,7 @@ class Demonstrators(commands.Cog):
         else:
             prevMessages[k] = await ctx.send('No more students in the queue.')
         await rmCMDMessage(ctx)
+        queues.sync()
 
     @commands.command()
     @commands.has_any_role(*adminRoles)
@@ -216,12 +228,13 @@ class Demonstrators(commands.Cog):
         """
         k = ctx.guild.name + ctx.channel.name
         await rmPrevMessage(ctx, k)
+        queue = getQueue(str(ctx.guild))
+        logging.info('{0} queue {1}'.format(ctx.guild, queue))
 
-        logging.info('{0} queue {1}'.format(ctx.guild, getQueue(ctx.guild)))
-        queue = getQueue(ctx.guild)
         temp = []
         for x in queue:
-            temp.append(x.mention)
+            nextStudent = updateMember(ctx, x)
+            temp.append(nextStudent.mention)
         queue = temp
         if queue is None or len(queue) == 0:
             prevMessages[k] = await ctx.send('No students in the Queue.')
@@ -242,7 +255,7 @@ class Demonstrators(commands.Cog):
         k = ctx.guild.name + ctx.channel.name
         await rmPrevMessage(ctx, k)
 
-        queue = getQueue(ctx.guild)
+        queue = getQueue(str(ctx.guild))
 
         if len(queue) > 0:
             nextStudent = queue.pop(0)
@@ -262,6 +275,7 @@ class Demonstrators(commands.Cog):
         else:
             prevMessages[k] = await ctx.send('No more students in the queue.')
         await rmCMDMessage(ctx)
+        queues.sync()
 
     @commands.command()
     @commands.has_any_role(*adminRoles)
@@ -300,15 +314,16 @@ class Students(commands.Cog):
         await rmPrevMessage(ctx, k)
 
         s = ctx.message.author
-        q = getQueue(ctx.guild)
-        if s not in q:
-            q.append(s)
+        q = getQueue(str(ctx.guild))
+        if s.id not in q:
+            q.append(s.id)
             logging.info('{0} add {1}'.format(ctx.guild, s))
             prevMessages[k] = await ctx.send(
-                s.mention + ' has been added to the queue. ' + getCustomAddMessage(ctx.guild))
+                s.mention + ' has been added to the queue. ' + getCustomAddMessage(ctx.guild.name))
         else:
             prevMessages[k] = await ctx.send(s.mention + ' is already in the queue.')
         await rmCMDMessage(ctx)
+        queues.sync()
 
     @commands.command()
     async def remove(self, ctx: Context):
@@ -319,11 +334,12 @@ class Students(commands.Cog):
         await rmPrevMessage(ctx, k)
 
         s = ctx.message.author
-        q = getQueue(ctx.guild)
-        if s in q:
-            q.remove(s)
+        q = getQueue(str(ctx.guild))
+        if s.id in q:
+            q.remove(s.id)
             logging.info('{0} remove {1}'.format(ctx.guild, s))
             prevMessages[k] = await ctx.send(s.mention + ' has been removed from queue.')
         else:
             prevMessages[k] = await ctx.send(s.mention + ' is not in the queue.')
         await rmCMDMessage(ctx)
+        queues.sync()
