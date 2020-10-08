@@ -5,7 +5,7 @@ import shelve
 from discord.ext import commands
 from discord.ext.commands import Context
 
-from cogs import adminRoles, addMessageFile
+from cogs import adminRoles, addMessageFile, toggleStateFile
 
 
 def setup(bot):
@@ -28,7 +28,7 @@ class Utilities(commands.Cog):
         perms = None
         for r in ctx.me.roles:
             print(r, ctx.me.name)
-            if r.name[0:4] == 'Demo': # need better way to do this crap.
+            if r.name[0:4] == 'Demo':  # need better way to do this crap.
                 perms = r.permissions
                 break
         # does't work.. perms = ctx.guild.permissions_for(ctx.me)
@@ -87,6 +87,23 @@ You can also set the `help-1` role to hide channel history so the student can't 
             if str(serverName) in db:
                 db.pop(str(serverName))
                 return await ctx.send('Custom add message has been reset')
+
+    @commands.command()
+    @commands.has_any_role(*adminRoles)
+    async def toggleAutoRemove(self, ctx: Context):
+        """
+        Toggles whether the bot should auto remove messages
+        """
+        serverName = str(ctx.guild)
+        with shelve.open(toggleStateFile) as db:
+            currentState = True  # inverse of default state
+            if serverName in db: # load existing state
+                currentState = not db.pop(serverName)
+            db[serverName] = currentState
+            if not currentState:
+                await ctx.send("auto remove disabled")
+            else:
+                await ctx.send("auto remove enabled")
 
     @commands.command()
     async def ping(self, ctx: Context):

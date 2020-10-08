@@ -9,7 +9,7 @@ from discord.ext.commands import Context
 import logging
 import shelve
 
-from cogs import adminRoles, addMessageFile
+from cogs import adminRoles, addMessageFile, toggleStateFile
 from helpers import listPrint
 
 queues = {'dummy': []}
@@ -21,12 +21,21 @@ queues = {'dummy': []}
 # save into prevMessages e.g prevMessages[k] = await ctx.send(...)
 prevMessages = {'dummy': None}
 
+def autoRemoveEnabled(serverName):
+    with shelve.open(toggleStateFile) as db:
+        currentState = False
+        if serverName in db:  # load existing state
+            currentState = db.get(serverName)
+        return currentState
 
 async def rmPrevMessage(ctx: Context, k):
     """
     remove the message associated with the key (k) from the store and delete it if it still exists on the server.
     called on the commands you want to remove the previous message before putting in new one.
     """
+    if not autoRemoveEnabled(str(ctx.guild)):
+        return
+
     if k in prevMessages.keys():
         prevM = prevMessages[k]
         if prevM:
@@ -43,6 +52,9 @@ async def rmCMDMessage(ctx: Context):
     """
     delete the command message for the context provided if bot has required perms.
     """
+    if not autoRemoveEnabled(str(ctx.guild)):
+        return
+
     botPerms: Permissions = ctx.channel.permissions_for(ctx.me)
     if botPerms.manage_messages:  # only do if bot has permission otherwise ignore
         await ctx.message.delete()

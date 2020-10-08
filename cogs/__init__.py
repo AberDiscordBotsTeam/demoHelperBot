@@ -3,3 +3,4 @@ adminRoles = ['Demonstrator', 'demonstrator', 'DEMONSTRATOR', 'Admin role', 'ADM
               'LECTURER', 'advisor']
 
 addMessageFile = 'addMessage.shelve'
+toggleStateFile = 'toggleState.shelve'
